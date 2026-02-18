@@ -37,7 +37,8 @@ BotConfig < Panel
     text: Add
     width: 56
     height: 18
-    text-offet: 0 2
+    text-offset: 0 2
+    !tooltip: tr('Create new configuration')
 
   Button
     id: edit
@@ -46,7 +47,8 @@ BotConfig < Panel
     text: Edit
     width: 56
     height: 18
-    text-offet: 0 2
+    text-offset: 0 2
+    !tooltip: tr('Rename selected configuration')
 
   Button
     id: remove
@@ -55,4 +57,5 @@ BotConfig < Panel
     text: Remove
     width: 56
     height: 18
-    text-offet: 0 2
+    text-offset: 0 2
+    !tooltip: tr('Remove selected configuration')

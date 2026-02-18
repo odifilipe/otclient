@@ -8,22 +8,43 @@ local context = G.botContext
 context.Config = {}
 local Config = context.Config
 
+Config.getDir = function(dir)
+  if context.profile and context.profile ~= "Default" then
+    return context.configDir .. "/vBot_configs/" .. context.profile .. "/" .. dir
+  end
+  return context.configDir .. "/" .. dir
+end
+
 Config.exist = function(dir)
-  return g_resources.directoryExists(context.configDir .. "/" .. dir)
+  return g_resources.directoryExists(Config.getDir(dir))
 end
 
 Config.create = function(dir)
-  g_resources.makeDir(context.configDir .. "/" .. dir)
+  local path = Config.getDir(dir)
+  g_resources.makeDir(path)
+  -- Ensure parent directories exist if using deep path
+  if not g_resources.directoryExists(path) then
+      local parts = path:split("/")
+      local current = ""
+      for i, part in ipairs(parts) do
+          if part:len() > 0 then
+              current = current .. "/" .. part
+              if not g_resources.directoryExists(current) then
+                  g_resources.makeDir(current)
+              end
+          end
+      end
+  end
   return Config.exist(dir)
 end
 
 Config.list = function(dir)
   if not Config.exist(dir) then
     if not Config.create(dir) then
-      return contex.error("Can't create config dir: " .. context.configDir .. "/" .. dir)
+      return context.error("Can't create config dir: " .. Config.getDir(dir))
     end
   end
-  local list = g_resources.listDirectoryFiles(context.configDir .. "/" .. dir)
+  local list = g_resources.listDirectoryFiles(Config.getDir(dir))
   local correctList = {}
   for k, v in ipairs(list) do -- filter files
     local nv = v:gsub(".json", ""):gsub(".cfg", "")
@@ -53,7 +74,7 @@ Config.parse = function(data)
 end
 
 Config.load = function(dir, name)
-  local file = context.configDir .. "/" .. dir .. "/" .. name .. ".json"
+  local file = Config.getDir(dir) .. "/" .. name .. ".json"
   if g_resources.fileExists(file) then -- load json
     local status, result = pcall(function()
       local data = g_resources.readFileContents(file)
@@ -66,7 +87,7 @@ Config.load = function(dir, name)
     end
     return result
   end
-  file = context.configDir .. "/" .. dir .. "/" .. name .. ".cfg"
+  file = Config.getDir(dir) .. "/" .. name .. ".cfg"
   if g_resources.fileExists(file) then -- load cfg
     local status, result = pcall(function()
       return table.decodeStringPairList(g_resources.readFileContents(file))
@@ -81,11 +102,11 @@ Config.load = function(dir, name)
 end
 
 Config.loadRaw = function(dir, name)
-  local file = context.configDir .. "/" .. dir .. "/" .. name .. ".json"
+  local file = Config.getDir(dir) .. "/" .. name .. ".json"
   if g_resources.fileExists(file) then -- load json
     return g_resources.readFileContents(file)
   end
-  file = context.configDir .. "/" .. dir .. "/" .. name .. ".cfg"
+  file = Config.getDir(dir) .. "/" .. name .. ".cfg"
   if g_resources.fileExists(file) then -- load cfg
     return g_resources.readFileContents(file)
   end
@@ -95,13 +116,13 @@ end
 Config.save = function(dir, name, value, forcedExtension)
   if not Config.exist(dir) then
     if not Config.create(dir) then
-      return contex.error("Can't create config dir: " .. context.configDir .. "/" .. dir)
+      return context.error("Can't create config dir: " .. Config.getDir(dir))
     end
   end
   if type(value) ~= 'table' then
     return context.error("Invalid config value type: " .. type(value) .. ", should be table")
   end
-  local file = context.configDir .. "/" .. dir .. "/" .. name
+  local file = Config.getDir(dir) .. "/" .. name
   if (table.isStringPairList(value) and forcedExtension ~= "json") or forcedExtension == "cfg" then -- cfg
     g_resources.writeFileContents(file .. ".cfg", table.encodeStringPairList(value))
   else
@@ -111,13 +132,13 @@ Config.save = function(dir, name, value, forcedExtension)
 end
 
 Config.remove = function(dir, name)
-  local file = context.configDir .. "/" .. dir .. "/" .. name .. ".json"
+  local file = Config.getDir(dir) .. "/" .. name .. ".json"
   local ret = false
   if g_resources.fileExists(file) then
     g_resources.deleteFile(file)
     ret = true
   end
-  file = context.configDir .. "/" .. dir .. "/" .. name .. ".cfg"
+  file = Config.getDir(dir) .. "/" .. name .. ".cfg"
   if g_resources.fileExists(file) then
     g_resources.deleteFile(file)
     ret = true
@@ -132,7 +153,7 @@ Config.setup = function(dir, widget, configExtension, callback)
     return context.error("Invalid config dir")
   end
   if not Config.exist(dir) and not Config.create(dir) then
-    return context.error("Can't create config dir: " .. dir)
+    return context.error("Can't create config dir: " .. Config.getDir(dir))
   end
   if type(context.storage._configs) ~= "table" then
     context.storage._configs = {}
@@ -189,7 +210,7 @@ Config.setup = function(dir, widget, configExtension, callback)
       if name:len() == 0 or name:len() >= 30 or name:find("/") or name:find("\\") then
         return context.error("Invalid config name")
       end
-      local file = context.configDir .. "/" .. dir .. "/" .. name .. "." .. configExtension
+      local file = Config.getDir(dir) .. "/" .. name .. "." .. configExtension
       if g_resources.fileExists(file) then
         return context.error("Config " .. name .. " already exist")
       end

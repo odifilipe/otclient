@@ -1,10 +1,23 @@
 local context = G.botContext
 local Panels = context.Panels
 
+-- Helper function to display multiline text editor (replaces modules.client_textedit.multilineEditor)
+local function displayMultilineEditor(title, defaultText, callback)
+    local inputBox = UIInputBox.create(title, function(text)
+        if callback then
+            callback(text)
+        end
+    end, function()
+        -- cancel callback - do nothing
+    end)
+    inputBox:addTextEdit(nil, defaultText, 8192, 10)
+    inputBox:display(tr('Ok'), tr('Cancel'))
+end
+
 Panels.MonsterEditor = function(monster, config, callback, parent)
   local otherWindow = g_ui.getRootWidget():getChildById('monsterEditor')
   if otherWindow then
-    otherWindow:destory()
+    otherWindow:destroy()
   end
 
   local window = context.setupUI([[
@@ -164,7 +177,7 @@ MainWindow
     step: 1
 
   Label
-    id: dangerText
+    id: dangerInfoText
     anchors.left: parent.left
     anchors.right: parent.horizontalCenter
     anchors.top: prev.bottom
@@ -176,7 +189,7 @@ MainWindow
     text-auto-resize: true
 
   Label
-    id: attackSpellText
+    id: attackSpellInfoText
     anchors.left: parent.left
     anchors.right: parent.horizontalCenter
     anchors.top: prev.bottom
@@ -678,7 +691,7 @@ Panel
     refreshConfig()
   end
   ui.add.onClick = function()
-    modules.client_textedit.multilineEditor("Target list editor", "name:Config name", function(newText)
+    displayMultilineEditor("Target list editor", "name:Config name", function(newText)
       table.insert(context.storage.attacking.configs, newText)
       context.storage.attacking.activeConfig = #context.storage.attacking.configs
       refreshConfig()
@@ -688,7 +701,7 @@ Panel
     if not context.storage.attacking.activeConfig or not context.storage.attacking.configs[context.storage.attacking.activeConfig] then
       return
     end
-    modules.client_textedit.multilineEditor("Target list editor",
+    displayMultilineEditor("Target list editor",
       context.storage.attacking.configs[context.storage.attacking.activeConfig], function(newText)
         context.storage.attacking.configs[context.storage.attacking.activeConfig] = newText
         refreshConfig()
@@ -1100,7 +1113,7 @@ Panel
     if not justStartedAttack and config.attackSpell and config.attackSpell:len() > 0 then
       if context.now > lastAttackSpell + 1000 and context.player:getHealthPercent() > 30 then
         if context.saySpell(config.attackSpell, 1500) then
-          lastAttackRune = context.now
+          lastAttackSpell = context.now
         end
       end
     end

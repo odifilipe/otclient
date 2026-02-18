@@ -21,15 +21,15 @@ function online()
   ChangedProfile = false
 
   -- startup arguments has higher priority than settings
-  local index = getProfileFromStartupArgument()
-  if index then
-    setProfileOption(index)
+  local profile = getProfileFromStartupArgument()
+  if profile then
+    setProfileOption(profile)
   end
 
   load()
 
-  if not index then
-    setProfileOption(getProfileFromSettings() or 1)
+  if not profile then
+    setProfileOption(getProfileFromSettings() or "Default")
   end
 
   -- create main settings dir
@@ -37,29 +37,24 @@ function online()
     g_resources.makeDir("/settings/")
   end
 
-  -- create profiles dirs
-  for i=1,10 do
-    local path = "/settings/profile_"..i
-
-    if not g_resources.directoryExists(path) then
-      g_resources.makeDir(path)
-    end
+  -- create default profile if it doesn't exist
+  local defaultProfile = "/settings/Default"
+  if not g_resources.directoryExists(defaultProfile) then
+    g_resources.makeDir(defaultProfile)
   end
 end
 
-function setProfileOption(index)
-  local currentProfile = g_settings.getNumber('profile')
-  currentProfile = tostring(currentProfile)
-  index = tostring(index)
-
-  if currentProfile ~= index then
+function setProfileOption(profileName)
+  local currentProfile = g_settings.getString('profile')
+  
+  if currentProfile ~= profileName then
     ChangedProfile = true
-    return modules.client_options.setOption('profile', index)
+    return modules.client_options.setOption('profile', profileName)
   end
 
 end
 
--- load profile number from settings
+-- load profile name from settings
 function getProfileFromSettings()
   -- settings should save per character, return if not online
   if not g_game.isOnline() then return end
@@ -79,25 +74,28 @@ function getProfileFromStartupArgument()
 
     for index, option in ipairs(startupOptions) do
         if option == "--profile" then
-            local profileIndex = startupOptions[index + 1]
-            if profileIndex == nil then
-              return g_logger.info("Startup arguments incomplete: missing profile index.")
+            local profileName = startupOptions[index + 1]
+            if profileName == nil then
+              return g_logger.info("Startup arguments incomplete: missing profile name.")
             end
 
-            g_logger.info("Startup options: Forced profile: "..profileIndex)
+            g_logger.info("Startup options: Forced profile: "..profileName)
             -- set value in options
-            return profileIndex
+            return profileName
         end
     end
 
     return false
 end
 
--- returns string path ie. "/settings/1/actionbar.json"
+-- returns string path ie. "/settings/Default/actionbar.json"
 function getSettingsFilePath(fileNameWithFormat)
-  local currentProfile = g_settings.getNumber('profile')
+  local currentProfile = g_settings.getString('profile')
+  if not currentProfile or currentProfile == "" then
+     currentProfile = "Default"
+  end
 
-  return "/settings/profile_"..currentProfile.."/"..fileNameWithFormat
+  return "/settings/"..currentProfile.."/"..fileNameWithFormat
 end
 
 function offline()
@@ -112,7 +110,7 @@ function onProfileChange(offline)
     scheduleEvent(collectiveReload, 100)
   end
 
-  local currentProfile = g_settings.getNumber('profile')
+  local currentProfile = g_settings.getString('profile')
   local index = g_game.getCharacterName()
 
   if index then

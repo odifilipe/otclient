@@ -1,4 +1,4 @@
-function executeBot(config, storage, tabs, msgCallback, saveConfigCallback, reloadCallback, websockets)
+function executeBot(config, storage, tabs, msgCallback, saveConfigCallback, reloadCallback, websockets, profile)
   -- load lua and otui files
   local configFiles = g_resources.listDirectoryFiles("/bot/" .. config, true, false)
   local luaFiles = {}
@@ -20,6 +20,7 @@ function executeBot(config, storage, tabs, msgCallback, saveConfigCallback, relo
   -- init bot variables
   local context = {}
   context.configDir = "/bot/".. config
+  context.profile = profile
   context.tabs = tabs
   context.mainTab = context.tabs:addTab("Main", g_ui.createWidget('BotPanel')).tabPanel.content
   context.panel = context.mainTab
@@ -30,6 +31,8 @@ function executeBot(config, storage, tabs, msgCallback, saveConfigCallback, relo
   if context.storage._macros == nil then
     context.storage._macros = {} -- active macros
   end
+  
+  context._createdWidgets = {}
 
   -- websockets, macros, hotkeys, scheduler, icons, callbacks
   context._websockets = websockets
@@ -128,7 +131,24 @@ function executeBot(config, storage, tabs, msgCallback, saveConfigCallback, relo
   context.g_resources = g_resources
   context.g_game = g_game
   context.g_map = g_map
-  context.g_ui = g_ui
+  context.g_ui = {
+    importStyle = g_ui.importStyle,
+    loadUI = g_ui.loadUI,
+    loadUIFromString = g_ui.loadUIFromString,
+    displayUI = function(otui)
+      local widget = g_ui.displayUI(otui)
+      table.insert(context._createdWidgets, widget)
+      return widget
+    end,
+    createWidget = function(style, parent)
+      local widget = g_ui.createWidget(style, parent)
+      if not parent then
+         table.insert(context._createdWidgets, widget)
+      end
+      return widget
+    end,
+    getRootWidget = g_ui.getRootWidget,
+  }
   context.g_sounds = g_sounds
   context.g_window = g_window
   context.g_mouse = g_mouse
@@ -433,6 +453,13 @@ function executeBot(config, storage, tabs, msgCallback, saveConfigCallback, relo
           callback(player, slot, item, oldItem)
         end
       end
-    }
+    },
+    terminate = function()
+      for i, widget in pairs(context._createdWidgets) do
+        if not widget:isDestroyed() then
+          widget:destroy()
+        end
+      end
+    end
   }
 end

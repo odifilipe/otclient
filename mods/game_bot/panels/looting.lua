@@ -1,6 +1,19 @@
 local context = G.botContext
 local Panels = context.Panels
 
+-- Helper function to display multiline text editor
+local function displayMultilineEditor(title, defaultText, callback)
+  local inputBox = UIInputBox.create(title, function(text)
+    if callback then
+      callback(text)
+    end
+  end, function()
+    -- cancel callback - do nothing
+  end)
+  inputBox:addTextEdit(nil, defaultText, 8192, 10)
+  inputBox:display(tr('Ok'), tr('Cancel'))
+end
+
 Panels.Looting = function(parent)
   local ui = context.setupUI([[
 Panel
@@ -266,7 +279,7 @@ Panel
     refreshConfig()
   end
   ui.add.onClick = function()
-    modules.client_textedit.multilineEditor("Looting editor", "name:Config name", function(newText)
+    displayMultilineEditor("Looting editor", "name:Config name", function(newText)
       table.insert(context.storage.looting.configs, newText)
       context.storage.looting.activeConfig = #context.storage.looting.configs
       refreshConfig()
@@ -276,7 +289,7 @@ Panel
     if not context.storage.looting.activeConfig or not context.storage.looting.configs[context.storage.looting.activeConfig] then
       return
     end
-    modules.client_textedit.multilineEditor("Looting editor", context.storage.looting.configs[context.storage.looting.activeConfig], function(newText)
+    displayMultilineEditor("Looting editor", context.storage.looting.configs[context.storage.looting.activeConfig], function(newText)
       context.storage.looting.configs[context.storage.looting.activeConfig] = newText
       refreshConfig()
     end)

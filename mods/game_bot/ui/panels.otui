@@ -9,7 +9,7 @@ DualScrollPanel < Panel
     anchors.top: parent.top
     text-align: center
 
-  HorizontalScrollBar
+  BotHorizontalScrollBar
     id: scroll1
     anchors.left: title.left
     anchors.right: title.horizontalCenter
@@ -21,7 +21,7 @@ DualScrollPanel < Panel
     step: 1
     &disableScroll: true
 
-  HorizontalScrollBar
+  BotHorizontalScrollBar
     id: scroll2
     anchors.left: title.horizontalCenter
     anchors.right: title.right
@@ -59,7 +59,7 @@ SingleScrollItemPanel < Panel
     margin-left: 2
     text-align: center
 
-  HorizontalScrollBar
+  BotHorizontalScrollBar
     id: scroll
     anchors.left: title.left
     anchors.right: title.right
@@ -88,7 +88,7 @@ DualScrollItemPanel < Panel
     margin-left: 2
     text-align: center
 
-  HorizontalScrollBar
+  BotHorizontalScrollBar
     id: scroll1
     anchors.left: title.left
     anchors.right: title.horizontalCenter
@@ -100,7 +100,7 @@ DualScrollItemPanel < Panel
     step: 1
     &disableScroll: true
 
-  HorizontalScrollBar
+  BotHorizontalScrollBar
     id: scroll2
     anchors.left: title.horizontalCenter
     anchors.right: title.right
@@ -287,7 +287,7 @@ LabelAndTextEditPanel < Panel
     anchors.right: parent.right
 
 SwitchAndButtonPanel < Panel
-  height: 20
+  height: 24
   padding: 1
 
   Button
