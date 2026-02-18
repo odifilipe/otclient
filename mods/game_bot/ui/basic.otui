@@ -4,17 +4,19 @@ BotButton < Button
 
 BotSwitch < Button
   margin-top: 2
-  height: 17
-  image-color: green
-  $!on:
-    image-color: red
+  height: 19
+  font: verdana-11px-rounded
+  color: #FF0000
+  $on:
+    color: #00AA00
 
 SmallBotSwitch < Button
   margin-top: 2
-  height: 15
-  image-color: green
-  $!on:
-    image-color: red
+  height: 17
+  font: verdana-11px-rounded
+  color: #FF0000
+  $on:
+    color: #00AA00
 
 BotLabel < Label
   margin-top: 2
@@ -39,14 +41,84 @@ BotSeparator < HorizontalSeparator
   margin-top: 5
   margin-bottom: 3
 
-BotSmallScrollBar < SmallScrollBar
+BotScrollBarSlider < UIButton
+  id: sliderButton
+  anchors.centerIn: parent
+  size: 8 16
+  image-source: /images/ui/scrollbar
+  image-clip: 0 26 13 13
+  image-border: 2
+  image-color: #555555
+  opacity: 0.8
+  $hover:
+    image-color: #777777
+    opacity: 1.0
+  $pressed:
+    image-color: #999999
+
+BotScrollBar < UIScrollBar
+  orientation: vertical
+  width: 8
+  height: 39
+  background-color: #00000022
+  pixels-scroll: true
+  step: 16
+
+  UIButton
+    id: decrementButton
+    size: 0 0
+    visible: false
+
+  UIButton
+    id: incrementButton
+    size: 0 0
+    visible: false
+  
+  BotScrollBarSlider
+
+BotSmallScrollBar < BotScrollBar
+
+BotHorizontalScrollBarSlider < UIButton
+  id: sliderButton
+  anchors.centerIn: parent
+  size: 16 8
+  image-source: /images/ui/scrollbar
+  image-clip: 0 26 13 13
+  image-border: 2
+  image-color: #555555
+  opacity: 0.8
+  $hover:
+    image-color: #777777
+    opacity: 1.0
+  $pressed:
+    image-color: #999999
+
+BotHorizontalScrollBar < UIScrollBar
+  orientation: horizontal
+  height: 8
+  width: 39
+  background-color: #00000022
+  pixels-scroll: true
+  step: 16
+
+  UIButton
+    id: decrementButton
+    size: 0 0
+    visible: false
+
+  UIButton
+    id: incrementButton
+    size: 0 0
+    visible: false
+
+  BotHorizontalScrollBarSlider
 
 BotPanel < Panel
-  margin-top: 1
+  margin-top: 2
   ScrollablePanel
     id: content
     anchors.fill: parent
-    margin-right: 8
+    margin-right: 10
     margin-left: 1
     margin-bottom: 5
     vertical-scrollbar: botPanelScroll
@@ -55,11 +127,12 @@ BotPanel < Panel
     $mobile:
       margin-right: 16
 
-  BotSmallScrollBar
+  BotScrollBar
     id: botPanelScroll
     anchors.top: parent.top
     anchors.bottom: parent.bottom
     anchors.right: parent.right
+    step: 16
 
 CaveBotLabel < Label
   background-color: alpha

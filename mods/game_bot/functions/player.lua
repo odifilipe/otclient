@@ -143,10 +143,10 @@ context.useRune = function(itemid, target, lastSpellTimeout)
   if context.lastRuneUse == nil then
     context.lastRuneUse = 0
   end
-  if not lastRuneTimeout then
-    lastRuneTimeout = 1000
+  if not lastSpellTimeout then
+    lastSpellTimeout = 1000
   end
-  if context.lastRuneUse + lastRuneTimeout > context.now then
+  if context.lastRuneUse + lastSpellTimeout > context.now then
     return false
   end
   context.usewith(itemid, target)
@@ -176,5 +176,9 @@ context.logout = g_game.forceLogout
 context.safeLogout = g_game.safeLogout
 context.ping = g_game.getPing
 
-modules.game_cooldown.isGroupCooldownIconActive(id)
-modules.game_cooldown.isCooldownIconActive(id)
+context.isGroupCooldownActive = function(id)
+  return modules.game_cooldown.isGroupCooldownIconActive(id)
+end
+context.isCooldownActive = function(id)
+  return modules.game_cooldown.isCooldownIconActive(id)
+end

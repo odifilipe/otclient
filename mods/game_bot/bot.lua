@@ -16,6 +16,9 @@ local configList = nil
 local enableButton = nil
 local executeEvent = nil
 local statusLabel = nil
+local profileSelector = nil
+local addProfile = nil
+local removeProfile = nil
 
 local configManagerUrl = "http://otclient.ovh/configs.php"
 
@@ -39,49 +42,31 @@ function init()
   botButton:setOn(false)
   botButton:show()
 
-  botWindow = g_ui.loadUI('bot', modules.game_interface.getLeftPanel())
-  botWindow:setup()
+  botWindow = g_ui.displayUI('bot')
+  botWindow:setVisible(false)
 
-  -- Hide unwanted miniwindow buttons
-  local toggleFilterButton = botWindow:recursiveGetChildById('toggleFilterButton')
-  if toggleFilterButton then
-    toggleFilterButton:setVisible(false)
-  end
-  
-  local contextMenuButton = botWindow:recursiveGetChildById('contextMenuButton')
-  if contextMenuButton then
-    contextMenuButton:setVisible(false)
-  end
-  
-  local newWindowButton = botWindow:recursiveGetChildById('newWindowButton')
-  if newWindowButton then
-    newWindowButton:setVisible(false)
-  end
-  
-  -- Position lockButton where toggleFilterButton would be (to the left of minimize button)
-  local lockButton = botWindow:recursiveGetChildById('lockButton')
-  local minimizeButton = botWindow:recursiveGetChildById('minimizeButton')
-  
-  if lockButton and minimizeButton then
-    lockButton:setVisible(true)
-    lockButton:breakAnchors()
-    lockButton:addAnchor(AnchorTop, minimizeButton:getId(), AnchorTop)
-    lockButton:addAnchor(AnchorRight, minimizeButton:getId(), AnchorLeft)
-    lockButton:setMarginRight(7)  -- Same margin as toggleFilterButton would have
-    lockButton:setMarginTop(0)
-    lockButton:setSize({width = 12, height = 12})
+  botWindow.onClose = function()
+    botWindow:hide()
+    botButton:setOn(false)
   end
 
-  contentsPanel = botWindow.contentsPanel
+  contentsPanel = botWindow
   configList = contentsPanel.config
   enableButton = contentsPanel.enableButton
   statusLabel = contentsPanel.statusLabel
+  profileSelector = contentsPanel.profileSelector
+  addProfile = contentsPanel.addProfile
+  removeProfile = contentsPanel.removeProfile
   botMessages = contentsPanel.messages
   botTabs = contentsPanel.botTabs
   botTabs:setContentWidget(contentsPanel.botPanel)
 
   editWindow = g_ui.displayUI('edit')
   editWindow:hide()
+
+  -- init configs and profiles immediately
+  createDefaultConfigs()
+  refreshProfiles()
 
   if g_game.isOnline() then
     clear()
@@ -106,13 +91,24 @@ function terminate()
 end
 
 function clear()
-  botExecutor = nil
+  if botExecutor then
+    if botExecutor.terminate then
+      botExecutor.terminate()
+    end
+    botExecutor = nil
+  end
   removeEvent(checkEvent)
 
   -- optimization, callback is not used when not needed
   g_game.enableTileThingLuaCallback(false)
 
-  botTabs:clearTabs()
+  -- robust tab clearing
+  local tabs = botTabs:getTabs()
+  if tabs then
+      for i = #tabs, 1, -1 do
+          botTabs:removeTab(tabs[i])
+      end
+  end
   botTabs:setOn(false)
 
   botMessages:destroyChildren()
@@ -122,36 +118,14 @@ function clear()
     HTTP.cancel(i)
     botWebSockets[i] = nil
   end
-
-  for i, widget in pairs(g_ui.getRootWidget():getChildren()) do
-    if widget.botWidget then
-      widget:destroy()
-    end
-  end
-  for i, widget in pairs(modules.game_interface.gameMapPanel:getChildren()) do
-    if widget.botWidget then
-      widget:destroy()
-    end
-  end
-  for _, widget in pairs({modules.game_interface.getRightPanel(), modules.game_interface.getLeftPanel()}) do
-    for i, child in pairs(widget:getChildren()) do
-      if child.botWidget then
-        child:destroy()
-      end
-    end
-  end
-
-  local gameMapPanel = modules.game_interface.getMapPanel()
-  if gameMapPanel then
-    gameMapPanel:unlockVisibleFloor()
-  end
-
   if g_sounds then
     g_sounds.getChannel(SoundChannels.Bot):stop()
   end
+  g_logger.info("clear() finished")
 end
 
-function refresh()
+function refresh(nextProfile)
+  g_logger.info("refresh() started")
   if not g_game.isOnline() then return end
   save()
   clear()
@@ -163,9 +137,11 @@ function refresh()
       return onError("Can't create bot directory in " .. g_resources.getWriteDir())
     end
   end
+  g_logger.info("bot dir checked")
 
   -- get list of configs
   createDefaultConfigs()
+  g_logger.info("createDefaultConfigs finished")
   local configs = g_resources.listDirectoryFiles("/bot", false, false)
 
   -- clean
@@ -199,15 +175,17 @@ function refresh()
     settings[index].config = widget:getCurrentOption().text
     g_settings.setNode('bot', settings)
     g_settings.save()
-    refresh()
+    refresh(nextProfile)
   end
 
   enableButton.onClick = function(widget)
     settings[index].enabled = not settings[index].enabled
     g_settings.setNode('bot', settings)
     g_settings.save()
-    refresh()
+    refresh(nextProfile)
   end
+
+  refreshProfiles()
 
   if not g_game.isOnline() or not settings[index].enabled then
     statusLabel:setOn(true)
@@ -229,7 +207,11 @@ function refresh()
     g_resources.makeDir(path)
   end
 
-  botStorageFile = path.."profile_" .. g_settings.getNumber('profile') .. ".json"
+  local currentProfile = nextProfile or g_settings.getString('profile')
+  if not currentProfile or currentProfile == "" or currentProfile == "0" then 
+     currentProfile = "Default" 
+  end
+  botStorageFile = path.."profile_" .. currentProfile .. ".json"
   if g_resources.fileExists(botStorageFile) then
     local status, result = pcall(function()
       return json.decode(g_resources.readFileContents(botStorageFile))
@@ -241,12 +223,14 @@ function refresh()
   end
 
   -- run script
+  g_logger.info("executing bot script...")
   local status, result = pcall(function()
-    return executeBot(configName, botStorage, botTabs, message, save, refresh, botWebSockets) end
-  )
+    return executeBot(configName, botStorage, botTabs, message, save, refresh, botWebSockets, currentProfile)
+  end)
   if not status then
     return onError(result)
   end
+  g_logger.info("bot script executed successfully")
 
   statusLabel:setOn(false)
   botExecutor = result
@@ -278,27 +262,26 @@ function save()
   g_resources.writeFileContents(botStorageFile, result)
 end
 
-function onMiniWindowClose()
-  botButton:setOn(false)
-end
-
 function toggle()
-  if botButton:isOn() then
-    botWindow:close()
+  if botWindow:isVisible() then
+    botWindow:hide()
     botButton:setOn(false)
   else
-    botWindow:open()
+    botWindow:show()
+    botWindow:focus()
+    botWindow:raise()
     botButton:setOn(true)
-
-    modules.game_interface.checkAndOpenLeftPanel()
   end
 end
 
 function online()
-  botWindow:setupOnStart()
   if not modules.client_profiles.ChangedProfile then
     scheduleEvent(refresh, 20)
   end
+end
+
+function reload()
+  g_modules.reloadModules()
 end
 
 function offline()
@@ -327,7 +310,11 @@ function edit()
 end
 
 local function copyFilesRecursively(sourcePath, targetPath)
+    g_logger.info("Copying from " .. sourcePath .. " to " .. targetPath)
     local files = g_resources.listDirectoryFiles(sourcePath, true, false, false)
+    if #files == 0 then
+        g_logger.warning("No files found in " .. sourcePath)
+    end
     for _, file in ipairs(files) do
         local baseName = file:split("/")
         baseName = baseName[#baseName]
@@ -342,21 +329,32 @@ local function copyFilesRecursively(sourcePath, targetPath)
             local contents = g_resources.fileExists(file) and g_resources.readFileContents(file) or ""
             if contents:len() > 0 then
                 g_resources.writeFileContents(targetFilePath, contents)
+            else
+                g_logger.warning("Empty file or read error: " .. file)
             end
         end
     end
 end
 
 function createDefaultConfigs()
-    local defaultConfigFiles = g_resources.listDirectoryFiles("default_configs", false, false)
+    g_logger.info("createDefaultConfigs started")
+    if not g_resources.directoryExists("/mods/game_bot/default_configs") then
+        g_logger.error("Default configs directory not found: /mods/game_bot/default_configs")
+        return
+    end
+    local defaultConfigFiles = g_resources.listDirectoryFiles("/mods/game_bot/default_configs", false, false)
+    g_logger.info("Found " .. #defaultConfigFiles .. " default configs")
     for _, configName in ipairs(defaultConfigFiles) do
         local targetDir = "/bot/" .. configName
         if not g_resources.directoryExists(targetDir) then
+            g_logger.info("Creating config: " .. configName)
             g_resources.makeDir(targetDir)
             if not g_resources.directoryExists(targetDir) then
                 return onError("Can't create directory: " .. targetDir)
             end
-            copyFilesRecursively("default_configs/" .. configName, targetDir)
+            copyFilesRecursively("/mods/game_bot/default_configs/" .. configName, targetDir)
+        else
+            g_logger.info("Config already exists: " .. configName)
         end
     end
 end
@@ -457,6 +455,111 @@ function decompressConfig(configName, archive)
   end
 end
 
+function refreshProfiles()
+  if not g_resources.directoryExists("/settings/Default") then
+      g_resources.makeDir("/settings/Default")
+  end
+  local profiles = g_resources.listDirectoryFiles("/settings", false, false)
+  profileSelector.onOptionChange = nil
+  profileSelector:clearOptions()
+
+  for i, profile in ipairs(profiles) do
+      if g_resources.directoryExists("/settings/" .. profile) then
+          profileSelector:addOption(profile)
+      end
+  end
+
+  local currentProfile = g_settings.getString('profile')
+  if not currentProfile or currentProfile == "" then
+     currentProfile = "Default"
+  end
+  
+  profileSelector:setCurrentOption(currentProfile)
+
+  profileSelector.onOptionChange = function(widget)
+      local profileName = widget:getCurrentOption().text
+      if g_settings.getString('profile') == profileName then return end
+      g_settings.set('profile', profileName)
+      g_settings.save()
+      refresh(profileName)
+  end
+  
+  addProfile.onClick = function()
+      g_logger.info("Add Profile Clicked")
+      displayTextInputBox(tr("Add Profile"), tr("Enter new profile name:"), function(text)
+          g_logger.info("Add Profile Callback: " .. tostring(text))
+          if not text or text == "" then return end
+
+          -- Validação de caracteres inválidos
+          if text:match('[/\\:*?"<>|]') then
+              return onError(tr("Profile name contains invalid characters."))
+          end
+
+          -- Validação de comprimento máximo
+          if #text > 50 then
+              return onError(tr("Profile name is too long (max 50 characters)."))
+          end
+
+          local path = "/settings/" .. text
+          if g_resources.directoryExists(path) then
+              return onError(tr("Profile already exists!"))
+          end
+          g_resources.makeDir(path)
+          if not g_resources.directoryExists(path) then
+              g_logger.error("Failed to make dir: " .. path)
+              return onError(tr("Failed to create profile directory."))
+          end
+          g_logger.info("Dir created, checking refreshProfiles...")
+          refreshProfiles()
+          g_logger.info("Setting current option to: " .. text)
+          profileSelector:setCurrentOption(text)
+      end)
+  end
+
+  removeProfile.onClick = function()
+      local current = profileSelector:getCurrentOption().text
+      if current == "Default" then
+          return onError(tr("You cannot remove the Default profile."))
+      end
+      
+      local yesCallback = function()
+          local path = "/settings/" .. current
+          g_resources.deleteFile(path)
+
+          -- Remove storage e configs órfãos de todas as configs
+          local configs = g_resources.listDirectoryFiles("/bot", false, false)
+          for _, configName in ipairs(configs) do
+              -- Remove arquivo de storage do profile
+              local storageFile = "/bot/" .. configName .. "/storage/profile_" .. current .. ".json"
+              if g_resources.fileExists(storageFile) then
+                  g_resources.deleteFile(storageFile)
+              end
+
+              -- Remove diretório de configs específicos do profile (vBot)
+              local configDir = "/bot/" .. configName .. "/vBot_configs/" .. current
+              if g_resources.directoryExists(configDir) then
+                  g_resources.deleteFile(configDir)
+              end
+          end
+
+          refreshProfiles()
+          profileSelector:setCurrentOption("Default")
+      end
+
+      local noCallback = function() end
+      
+      local msgBox = displayInfoBox(tr("Remove Profile"), tr("Are you sure you want to remove profile '%s'?", current))
+      msgBox:addButton(tr("Yes"), function() 
+          msgBox:destroy()
+          yesCallback()
+      end)
+      msgBox:addButton(tr("No"), function() 
+          msgBox:destroy()
+          noCallback()
+      end)
+  end
+end
+
 -- Executor
 function message(category, msg)
   local widget = g_ui.createWidget('BotLabel', botMessages)
@@ -540,14 +643,14 @@ function initCallbacks()
     onAppear = botCreatureAppear,
     onDisappear = botCreatureDisappear,
     onPositionChange = botCreaturePositionChange,
-    onHealthPercentChange = botCraetureHealthPercentChange,
+    onHealthPercentChange = botCreatureHealthPercentChange,
     onTurn = botCreatureTurn,
     onWalk = botCreatureWalk,
   })
 
   connect(LocalPlayer, {
     onPositionChange = botCreaturePositionChange,
-    onHealthPercentChange = botCraetureHealthPercentChange,
+    onHealthPercentChange = botCreatureHealthPercentChange,
     onTurn = botCreatureTurn,
     onWalk = botCreatureWalk,
     onManaChange = botManaChange,
@@ -604,14 +707,14 @@ function terminateCallbacks()
     onAppear = botCreatureAppear,
     onDisappear = botCreatureDisappear,
     onPositionChange = botCreaturePositionChange,
-    onHealthPercentChange = botCraetureHealthPercentChange,
+    onHealthPercentChange = botCreatureHealthPercentChange,
     onTurn = botCreatureTurn,
     onWalk = botCreatureWalk,
   })
 
   disconnect(LocalPlayer, {
     onPositionChange = botCreaturePositionChange,
-    onHealthPercentChange = botCraetureHealthPercentChange,
+    onHealthPercentChange = botCreatureHealthPercentChange,
     onTurn = botCreatureTurn,
     onWalk = botCreatureWalk,
     onManaChange = botManaChange,

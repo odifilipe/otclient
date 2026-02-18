@@ -10,7 +10,7 @@ BotContainer < Panel
       cell-size: 34 34
       flow: true
 
-  BotSmallScrollBar
+  BotScrollBar
     id: scroll
     anchors.top: prev.top
     anchors.bottom: prev.bottom

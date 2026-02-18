@@ -2,7 +2,7 @@ Module
   name: game_bot
   description: Advanced OTClientV8 Bot
   author: otclient@otclient.ovh
-  sandboxed: true
+  sandboxed: false
   scripts: [ bot ]
   @onLoad: init()
   @onUnload: terminate()
